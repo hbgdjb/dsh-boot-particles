@@ -23,6 +23,7 @@
     "offscreencanvas"
   ],
   "scripts": {
+    "test": "node --test \"tests/*.test.mjs\"",
     "install:plugin": "node install.mjs",
     "uninstall:plugin": "node install.mjs --remove",
     "dry-run": "node install.mjs --dry-run"

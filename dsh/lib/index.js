@@ -95,17 +95,37 @@ function bootScript(config) {
   return body
 }
 
+/* 先把四行全部生成好，再一次性写进注入表。
+ *
+ * 逐行 push 是有风险的：coreTag() / bootScript() 的自检失败时会 throw，
+ * 而那时遮罩的标记已经进表了 —— 页面上会留下一块黑遮罩，且没有任何脚本
+ * 会去收走它（兜底定时器在启动脚本里，而启动脚本正是没插进去的那一行）。
+ * 要么全上，要么全不上。 */
+function buildRows(config) {
+  return [
+    { kind: 'style', text: readAsset('boot.css') },
+    { kind: 'html', placement: 'body', html: bootMarkup() },
+    { kind: 'html', placement: 'body', html: coreTag() },
+    { kind: 'script', placement: 'body', text: bootScript(config) },
+  ]
+}
+
 export function apply(ctx, rawConfig) {
   const config = resolveConfig(rawConfig)
   if (!config.enabled || !config.overlay) return
   ctx.inject(['webServer'], (webCtx) => {
     webCtx.on('webserver/index-inject', (table) => {
-      const already = table.some((row) => row.kind === 'html' && typeof row.html === 'string' && row.html.includes('dsh-particle-boot'))
-      if (already) return
-      table.push({ kind: 'style', text: readAsset('boot.css') })
-      table.push({ kind: 'html', placement: 'body', html: bootMarkup() })
-      table.push({ kind: 'html', placement: 'body', html: coreTag() })
-      table.push({ kind: 'script', placement: 'body', text: bootScript(config) })
+      if (!Array.isArray(table)) return
+      try {
+        const already = table.some((row) => row.kind === 'html' && typeof row.html === 'string' && row.html.includes('dsh-particle-boot'))
+        if (already) return
+        const rows = buildRows(config)
+        for (const row of rows) table.push(row)
+      } catch (err) {
+        /* 一个纯装饰层不值得让整页渲染失败。抛出去可能连累 index 渲染，
+         * 所以这里只记一条日志然后跳过注入：界面照常出来，只是没有开屏动画。 */
+        webCtx.logger?.warn?.(`${NAME}: skipped — ${err && err.message}`)
+      }
     })
     webCtx.logger?.debug?.(`${NAME}: particle transition layer on`)
   })

@@ -41,6 +41,19 @@ node install.mjs               # 正式安装
 - 桌面版 DeepSeek Harness（`desktop` profile）。
 - 渲染层是 Chromium，支持 `OffscreenCanvas`；不支持时自动退回主线程绘制，观感一致。
 
+### 对 CSP 的依赖
+
+插件执行自己的代码用了两条路径，宿主的内容安全策略必须放行：
+
+| 路径 | 需要的策略 |
+| --- | --- |
+| Worker（默认） | `worker-src blob:` —— 引擎以 Blob URL 交给 Worker |
+| 主线程兜底（Worker 不可用时） | `script-src 'unsafe-eval'` —— 用 `new Function` 执行引擎源码 |
+
+桌面版当前两者都放行，所以直接可用。**如果将来宿主收紧 CSP，插件不会报错，而是静默降级成「只淡出」**——排查时先在 DevTools 里看有没有 CSP 违规日志，别怀疑动画代码。
+
+注入层还有一条自检：引擎源码或启动脚本里只要出现 `</script`，本次注入会被整层跳过并记一条 `warn` 日志（不会把宿主页面截断，也不会留下半块遮罩）。
+
 ## 验证
 
 1. `cordis.patch.yml` 里有标记段：
@@ -51,6 +64,16 @@ Select-String -Path "$env:USERPROFILE\.dsh\profiles\desktop\cordis.patch.yml" -P
 
 2. 重启后打开工作台，第一屏就是粒子动画；约 9.3 秒后自动交还界面，无残留遮罩、无白屏闪断。
 3. 想再看一次：插件默认一个会话只播一次。重新完全启动即可，或在页面地址后加 `?boot=force`。
+
+## 测试
+
+```powershell
+node --test tests/
+```
+
+`tests/engine.test.mjs` 用桩 canvas 在 Node 里跑绘制核心：不需要浏览器，也不需要 DOM。测的是时间轴常量自洽、`draw()` 覆盖全时间轴不抛、同一种子可复现、`setTargets` / `resize` 边界，以及「界面还没挂载」时也能跑完。
+
+`tests/packaging.test.mjs` 守几条运行时不报错但会在用户机器上出事的规矩：注入资产里不得出现 `</script`（否则开屏层会被整层跳过）、`dsh/package.json` 的 `main` 必须存在、两处版本号一致、`install.mjs` 的 BEGIN/END 标记成对、README 与 demo 引用的文件都在、不留占位符。
 
 ## 卸载
 
@@ -94,6 +117,7 @@ node install.mjs --remove      # 只删 patch 段，文件保留
 | `dsh/lib/boot.css` | 首帧保护色，避免应用在引擎加载前闪一下 |
 | `dsh/package.json` | 插件清单 |
 | `demo/index.html` | 浏览器里预览同一套动画 + 假工作台 |
+| `tests/` | `node --test tests/`：绘制核心（桩 canvas）+ 包结构不变量 |
 | `docs/` | 预览图 |
 
 ## 调参
