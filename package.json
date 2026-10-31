@@ -1,0 +1,38 @@
+{
+  "name": "dsh-boot-particles",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Particle boot transition for the DeepSeek Harness desktop shell. Particles fly onto the real UI edges and the workspace fades in underneath.",
+  "type": "module",
+  "license": "MIT",
+  "author": "hbgdjb <2931621472@qq.com> (https://github.com/hbgdjb)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hbgdjb/dsh-boot-particles.git"
+  },
+  "homepage": "https://github.com/hbgdjb/dsh-boot-particles#readme",
+  "bugs": {
+    "url": "https://github.com/hbgdjb/dsh-boot-particles/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "plugin",
+    "boot-animation",
+    "particles",
+    "offscreencanvas"
+  ],
+  "scripts": {
+    "install:plugin": "node install.mjs",
+    "uninstall:plugin": "node install.mjs --remove",
+    "dry-run": "node install.mjs --dry-run"
+  },
+  "files": [
+    "dsh",
+    "install.mjs",
+    "demo",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ]
+}

@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>DSH particle boot — live demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{
+    --bg:#0a0a0c; --bg2:#0c0c0f; --panel:#0e0e12; --panel2:#141419;
+    --line:rgba(255,255,255,.075); --line2:rgba(255,255,255,.13);
+    --tx:#e8e8ee; --tx2:#9a9aa6; --tx3:#64646e;
+    --red:#e8402f; --red2:#ff6a52; --redsoft:rgba(232,64,47,.14);
+    --sans:"Segoe UI Variable Display","Segoe UI",-apple-system,system-ui,sans-serif;
+    --mono:"Cascadia Mono",Consolas,"SFMono-Regular",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--tx);font-family:var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  textarea{font:inherit}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border:3px solid transparent;background-clip:padding-box;border-radius:8px}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.16);background-clip:padding-box;border:3px solid transparent}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---------- app shell ---------- */
+  .app{
+    display:grid;grid-template-columns:266px minmax(0,1fr);
+    height:100vh;height:100dvh;
+    background:
+      radial-gradient(1100px 560px at 52% -8%, rgba(232,64,47,.055), rgba(232,64,47,0) 62%),
+      var(--bg);
+    transition:opacity 1.05s cubic-bezier(.22,.68,.2,1),
+               filter 1.2s cubic-bezier(.22,.68,.2,1),
+               transform 1.35s cubic-bezier(.22,.68,.2,1);
+  }
+  .app.dshb-pending{opacity:.16;filter:blur(9px) saturate(.45) brightness(.72);transform:scale(1.015)}
+  .app.dshb-live{opacity:1;filter:none;transform:none}
+
+  /* ---------- sidebar ---------- */
+  .side{
+    display:flex;flex-direction:column;min-height:0;
+    background:linear-gradient(180deg,#0d0d11 0%,#0a0a0d 100%);
+    border-right:1px solid var(--line);
+  }
+  .brand{height:52px;display:flex;align-items:center;gap:9px;padding:0 14px;flex:none}
+  .brand .logo{display:grid;place-items:center;filter:drop-shadow(0 0 8px rgba(232,64,47,.35))}
+  .brand .nm{font-size:13px;letter-spacing:-.01em;color:var(--tx2);white-space:nowrap}
+  .brand .nm b{color:var(--tx);font-weight:600}
+  .brand .kbd{margin-left:auto}
+  .kbd{font:10px/1 var(--mono);color:var(--tx3);border:1px solid var(--line);border-radius:4px;padding:3px 4px;letter-spacing:.02em}
+  .newchat{
+    margin:8px 10px 4px;height:34px;flex:none;display:flex;align-items:center;gap:8px;
+    padding:0 10px;border:1px solid var(--line);border-radius:8px;
+    background:rgba(255,255,255,.028);color:var(--tx2);font-size:12.5px;
+    transition:background .16s,border-color .16s,color .16s;
+  }
+  .newchat:hover{background:rgba(255,255,255,.06);border-color:var(--line2);color:var(--tx)}
+  .newchat .kbd{margin-left:auto}
+  .newchat svg{color:var(--red2);opacity:.9}
+  .sessions{padding:2px 8px 8px;overflow-y:auto;min-height:0;flex:1}
+  .group{font:10px/1 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--tx3);padding:15px 8px 7px}
+  .sitem{
+    display:block;width:100%;text-align:left;height:30px;line-height:30px;
+    padding:0 9px;border-radius:7px;font-size:12.5px;color:var(--tx2);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    transition:background .13s,color .13s;
+  }
+  .sitem:hover{background:rgba(255,255,255,.045);color:var(--tx)}
+  .sitem.active{background:rgba(255,255,255,.065);color:var(--tx);box-shadow:inset 0 0 0 1px rgba(255,255,255,.045)}
+  .side-foot{
+    flex:none;height:58px;display:flex;align-items:center;gap:10px;
+    padding:0 12px;border-top:1px solid var(--line);
+  }
+  .avatar{
+    width:27px;height:27px;border-radius:50%;flex:none;display:grid;place-items:center;
+    background:linear-gradient(140deg,#2b2b33,#16161a);
+    border:1px solid var(--line2);font-size:11px;color:var(--tx2);font-weight:600;
+  }
+  .who{min-width:0;display:grid;gap:1px}
+  .who span{font-size:12px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .who small{font:10.5px/1.2 var(--mono);color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .icon-btn{
+    width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--tx3);
+    transition:background .14s,color .14s;
+  }
+  .icon-btn:hover{background:rgba(255,255,255,.06);color:var(--tx)}
+
+  /* ---------- main ---------- */
+  .main{display:grid;grid-template-rows:52px minmax(0,1fr) auto;min-height:0}
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:0 20px;border-bottom:1px solid var(--line);
+  }
+  .crumb{display:flex;align-items:center;gap:0;font-size:12.5px;min-width:0}
+  .crumb span{color:var(--tx3)}
+  .crumb i{color:rgba(255,255,255,.18);font-style:normal;margin:0 9px}
+  .crumb strong{font-weight:500;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top-right{display:flex;align-items:center;gap:10px;flex:none}
+  .pill{
+    height:28px;display:flex;align-items:center;gap:7px;padding:0 9px 0 8px;
+    border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.03);
+    font-size:11.5px;color:var(--tx2);transition:border-color .15s,color .15s,background .15s;
+  }
+  .pill:hover{border-color:var(--line2);color:var(--tx);background:rgba(255,255,255,.05)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:var(--red);box-shadow:0 0 7px rgba(232,64,47,.85)}
+  .pill svg{opacity:.5}
+  .status{display:flex;align-items:center;gap:6px;font:10.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--tx3)}
+  .status i{width:5px;height:5px;border-radius:50%;background:#5fbf83;box-shadow:0 0 6px rgba(95,191,131,.7)}
+  .vsep{width:1px;height:18px;background:var(--line);margin:0 2px}
+
+  /* ---------- chat ---------- */
+  .chat{overflow-y:auto;min-height:0;display:flex;flex-direction:column;padding-bottom:6px}
+  .hero{
+    margin:auto;width:100%;max-width:792px;padding:36px 24px 20px;
+    display:flex;flex-direction:column;align-items:flex-start;
+  }
+  .hero-mark{position:relative;margin-bottom:22px;display:grid;place-items:center}
+  .hero-mark::before{
+    content:"";position:absolute;width:120px;height:120px;border-radius:50%;
+    background:radial-gradient(circle,rgba(232,64,47,.16),rgba(232,64,47,0) 68%);
+    filter:blur(4px);
+  }
+  .hero-mark svg{position:relative;animation:turn 46s linear infinite}
+  @keyframes turn{to{transform:rotate(360deg)}}
+  .hero h1{font-size:33px;line-height:1.14;font-weight:500;letter-spacing:-.026em;color:var(--tx)}
+  .hero p{margin-top:13px;max-width:530px;font-size:14px;line-height:1.62;color:var(--tx2)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-top:28px}
+  .card{
+    display:grid;gap:7px;text-align:left;padding:14px 15px 13px;min-height:94px;
+    border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.022);
+    transition:border-color .18s,background .18s,transform .18s;
+  }
+  .card:hover{border-color:var(--line2);background:rgba(255,255,255,.042);transform:translateY(-1px)}
+  .card:active{transform:translateY(0) scale(.995)}
+  .card .ci{color:var(--tx3);transition:color .18s}
+  .card:hover .ci{color:var(--red2)}
+  .card b{font-size:13px;font-weight:550;color:var(--tx);letter-spacing:-.005em}
+  .card small{font-size:11.5px;line-height:1.46;color:var(--tx3)}
+
+  /* ---------- thread ---------- */
+  .thread{width:100%;max-width:860px;margin:0 auto;padding:26px 24px 8px}
+  .msg-user{display:flex;justify-content:flex-end;margin:8px 0 20px}
+  .msg-user .bubble{
+    max-width:640px;padding:10px 14px;border-radius:14px 14px 4px 14px;
+    background:#17171c;border:1px solid var(--line);font-size:14px;line-height:1.56;color:var(--tx);
+    white-space:pre-wrap;overflow-wrap:anywhere;
+  }
+  .msg-bot{display:flex;gap:12px;margin:0 0 26px}
+  .msg-bot .av{
+    width:26px;height:26px;border-radius:7px;flex:none;margin-top:2px;display:grid;place-items:center;
+    background:rgba(232,64,47,.09);border:1px solid rgba(232,64,47,.22);
+  }
+  .msg-bot .bd{min-width:0;font-size:14px;line-height:1.66;color:#d3d3dc}
+  .msg-bot .bd p{margin:0 0 10px}
+  .msg-bot .bd p:last-child{margin-bottom:0}
+  .msg-bot .bd ul{margin:0 0 11px;padding-left:17px}
+  .msg-bot .bd li{margin:4px 0}
+  .msg-bot .bd b{color:var(--tx);font-weight:600}
+  .msg-bot .bd code{font:12.4px/1.5 var(--mono);background:rgba(255,255,255,.06);border-radius:4px;padding:1.5px 5px;color:#e2c9c3}
+  .msg-bot .bd pre{
+    margin:5px 0 12px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;
+    background:#0b0b0e;overflow-x:auto;
+  }
+  .msg-bot .bd pre code{background:none;padding:0;font-size:12.4px;line-height:1.62;color:#c7c7d2}
+  .msg-meta{margin-top:12px;font:10.5px/1 var(--mono);letter-spacing:.07em;color:var(--tx3);text-transform:uppercase}
+  .dots{display:inline-flex;gap:4px;align-items:center;height:22px}
+  .dots i{width:5px;height:5px;border-radius:50%;background:var(--tx3);animation:blink 1.25s infinite ease-in-out}
+  .dots i:nth-child(2){animation-delay:.16s}
+  .dots i:nth-child(3){animation-delay:.32s}
+  @keyframes blink{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-2px)}}
+
+  /* ---------- composer ---------- */
+  .composer-wrap{width:100%;max-width:880px;margin:0 auto;padding:8px 24px 16px}
+  .composer{
+    border:1px solid var(--line2);border-radius:14px;background:#111116;
+    padding:12px 12px 8px;box-shadow:0 14px 38px rgba(0,0,0,.4);
+    transition:border-color .2s,box-shadow .2s;
+  }
+  .composer:focus-within{border-color:rgba(232,64,47,.4);box-shadow:0 14px 38px rgba(0,0,0,.4),0 0 0 3px rgba(232,64,47,.07)}
+  #input{
+    width:100%;min-height:26px;max-height:184px;resize:none;border:0;outline:0;background:transparent;
+    color:var(--tx);font-size:14px;line-height:1.55;padding:1px 4px 0;
+  }
+  #input::placeholder{color:var(--tx3)}
+  .cbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+  .cbtns{display:flex;align-items:center;gap:6px}
+  .chip{
+    height:26px;display:inline-flex;align-items:center;gap:6px;padding:0 8px;border-radius:7px;
+    border:1px solid var(--line);font-size:11.5px;color:var(--tx3);
+    transition:color .15s,border-color .15s,background .15s;
+  }
+  .chip:hover{color:var(--tx2);border-color:var(--line2);background:rgba(255,255,255,.03)}
+  .chip .dot{width:5px;height:5px;border-radius:50%;background:var(--red);box-shadow:0 0 6px rgba(232,64,47,.8)}
+  .send{
+    width:28px;height:28px;border-radius:8px;display:grid;place-items:center;
+    background:var(--red);color:#fff;transition:background .16s,box-shadow .16s,opacity .16s,transform .12s;
+  }
+  .send:disabled{background:rgba(255,255,255,.07);color:var(--tx3);cursor:default}
+  .send:not(:disabled):hover{background:#f44b37;box-shadow:0 0 0 4px rgba(232,64,47,.12)}
+  .send:not(:disabled):active{transform:scale(.94)}
+  .tiny{margin-top:9px;text-align:center;font:10.5px/1.4 var(--mono);letter-spacing:.05em;color:var(--tx3)}
+
+  /* ---------- replay ---------- */
+  .replay{
+    position:fixed;right:16px;bottom:14px;z-index:30;
+    display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:8px;
+    border:1px solid var(--line);background:rgba(10,10,13,.78);backdrop-filter:blur(10px);
+    font:10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--tx3);
+    transition:color .16s,border-color .16s,background .16s;
+  }
+  .replay:hover{color:var(--tx);border-color:var(--line2);background:rgba(16,16,20,.9)}
+
+  @media (max-width:900px){
+    .app{grid-template-columns:1fr}
+    .side{display:none}
+    .cards{grid-template-columns:1fr}
+    .hero h1{font-size:27px}
+  }
+</style>
+</head>
+<body>
+
+<div class="app dshb-pending" id="app">
+  <aside class="side">
+    <div class="brand">
+      <span class="logo">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" aria-hidden="true">
+          <path d="M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3z" stroke="rgba(255,120,96,.85)" stroke-width="1.1"/>
+          <path d="M12 7.2 16.6 9.8v5.2L12 17.6 7.4 15V9.8z" fill="rgba(232,64,47,.16)" stroke="rgba(255,140,116,.7)" stroke-width="1"/>
+          <circle cx="12" cy="12" r="1.4" fill="#ffb3a3"/>
+        </svg>
+      </span>
+      <span class="nm"><b>DeepSeek</b> Harness</span>
+      <span class="kbd">Ctrl K</span>
+    </div>
+
+    <button class="newchat" id="newChat">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      New session
+      <span class="kbd">Ctrl N</span>
+    </button>
+
+    <div class="sessions" id="sessionList"></div>
+
+    <div class="side-foot">
+      <div class="avatar">L</div>
+      <div class="who">
+        <span>Local workspace</span>
+        <small>~/projects/harness</small>
+      </div>
+      <button class="icon-btn" title="Settings" style="margin-left:auto">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.64 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.64a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.36 9c.24.6.82 1 1.46 1H21a2 2 0 1 1 0 4h-.09c-.64 0-1.22.4-1.46 1z"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="crumb">
+        <span>Workspace</span><i>/</i><strong id="crumbTitle">New session</strong>
+      </div>
+      <div class="top-right">
+        <button class="pill">
+          <span class="dot"></span>deepseek-v4.1
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <span class="status"><i></i>Ready</span>
+        <span class="vsep"></span>
+        <button class="icon-btn" title="Inspect">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m8 6-6 6 6 6M16 6l6 6-6 6"/></svg>
+        </button>
+        <button class="icon-btn" title="More">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h.01M12 12h.01M19 12h.01"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="chat" id="chat">
+      <div class="hero" id="hero">
+        <div class="hero-mark">
+          <svg viewBox="0 0 64 64" width="62" height="62" fill="none" aria-hidden="true">
+            <circle cx="32" cy="32" r="27.5" stroke="rgba(255,255,255,.07)" stroke-dasharray="1 6"/>
+            <path d="M32 10 50 20.4v23.2L32 54 14 43.6V20.4z" stroke="rgba(255,120,96,.42)" stroke-width="1.1"/>
+            <path d="M32 17.5 43.6 24.2v13.6L32 44.5 20.4 37.8V24.2z" fill="rgba(232,64,47,.075)" stroke="rgba(255,140,116,.5)" stroke-width="1"/>
+            <circle cx="32" cy="32" r="2.8" fill="#ff8b74"/>
+            <circle cx="32" cy="10" r="1.9" fill="rgba(255,150,126,.9)"/>
+            <circle cx="50" cy="20.4" r="1.9" fill="rgba(255,150,126,.5)"/>
+            <circle cx="14" cy="43.6" r="1.9" fill="rgba(255,150,126,.5)"/>
+            <circle cx="50" cy="43.6" r="1.9" fill="rgba(255,150,126,.3)"/>
+            <circle cx="14" cy="20.4" r="1.9" fill="rgba(255,150,126,.3)"/>
+          </svg>
+        </div>
+        <h1>What should we build?</h1>
+        <p>I can read the repo, run tools, and ship changes end to end. Start with a prompt, or pick a thread below.</p>
+        <div class="cards" id="cards">
+          <button class="card" data-prompt="Map the architecture of this repository and write a short onboarding guide.">
+            <span class="ci"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/></svg></span>
+            <b>Map the codebase</b>
+            <small>Architecture, entry points, and the hot paths.</small>
+          </button>
+          <button class="card" data-prompt="Show me how to write and register a Cordis plugin with a UI slot.">
+            <span class="ci"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10 3h4v4h-4zM3 10h4v4H3zM17 10h4v4h-4zM10 17h4v4h-4z"/><path d="M7 7l3 3M17 7l-3 3M7 17l3-3M17 17l-3-3"/></svg></span>
+            <b>Write a Cordis plugin</b>
+            <small>Slots, services, and a hot-reload overlay.</small>
+          </button>
+          <button class="card" data-prompt="Review my uncommitted changes and flag anything risky.">
+            <span class="ci"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3v12a3 3 0 0 0 3 3h9"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><path d="M15 6h3"/></svg></span>
+            <b>Review my changes</b>
+            <small>Diff review with the test suite attached.</small>
+          </button>
+          <button class="card" data-prompt="Explain how the harness runtime turns a model into an agent.">
+            <span class="ci"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg></span>
+            <b>Explain the runtime</b>
+            <small>Agent = model + harness, from first principles.</small>
+          </button>
+        </div>
+      </div>
+      <div class="thread" id="thread" hidden></div>
+    </section>
+
+    <footer class="composer-wrap">
+      <form class="composer" id="composer" autocomplete="off">
+        <textarea id="input" rows="1" placeholder="Ask DeepSeek Harness anything..."></textarea>
+        <div class="cbar">
+          <div class="cbtns">
+            <button type="button" class="icon-btn" title="Attach file">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button type="button" class="chip">@ context</button>
+            <button type="button" class="chip">/ commands</button>
+          </div>
+          <div class="cbtns">
+            <button type="button" class="chip"><span class="dot"></span>deepseek-v4.1</button>
+            <button type="submit" class="send" id="send" aria-label="Send" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </div>
+        </div>
+      </form>
+      <div class="tiny">Enter to send &middot; Shift + Enter for a new line &middot; Everything is a plugin</div>
+    </footer>
+  </main>
+</div>
+
+<button class="replay" id="replay">
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+  Replay boot
+</button>
+
+<script src="../dsh/lib/engine-core.js"></script>
+<script src="../dsh/lib/overlay.js"></script>
+<script>
+(function(){
+  'use strict';
+
+  var app = document.getElementById('app');
+  var chat = document.getElementById('chat');
+  var hero = document.getElementById('hero');
+  var thread = document.getElementById('thread');
+  var list = document.getElementById('sessionList');
+  var crumb = document.getElementById('crumbTitle');
+  var input = document.getElementById('input');
+  var sendBtn = document.getElementById('send');
+  var form = document.getElementById('composer');
+
+  var SESSIONS = [
+    {
+      id:'s1', group:'Today', title:'Refactor auth middleware',
+      msgs:[
+        {role:'user', text:'Look at the auth middleware. The token refresh path feels fragile and I think we double-write sessions.'},
+        {role:'bot', text:"Found it. `packages/core/src/auth/session.ts` refreshes the token on every request, then writes the session row twice: once in the middleware, once in the post-handler hook.\n\n- **Double write** — `touchSession()` is called from both paths. The second write loses the rotation timestamp.\n- **Race** — two parallel requests can both rotate the refresh token; the loser invalidates the winner.\n- **Missing guard** — `rotate()` has no compare-and-set on the previous token.\n\nI can collapse this into a single `withSession()` wrapper that rotates once per chain and serialises on the session id. Want me to open that branch and run the auth suite?"},
+        {role:'user', text:'Yes, do the wrapper. Keep the public middleware API identical.'},
+        {role:'bot', text:'Branch `fix/session-rotation` is open.\n\n- Added `withSession(ctx, next)` in `session.ts`; middleware now delegates to it.\n- Rotation is a compare-and-set on `refreshTokenHash`, so a losing request retries once instead of writing.\n- Session touch moved to a single `finally` block.\n\nTests: **42 passed, 0 failed** (`pnpm -F core test auth`). Diff is +118 / -74 across 3 files. Review when ready and I will squash it.'}
+      ]
+    },
+    {
+      id:'s2', group:'Today', title:'Cordis plugin slot API',
+      msgs:[
+        {role:'user', text:'How do plugins put UI into the harness? I want a small status pill in the sidebar footer.'},
+        {role:'bot', text:'Every plugin is a `name` plus an `apply(ctx)` function. UI is a slot registration.\n\n```ts\nexport const name = "status-pill"\n\nexport function apply(ctx: Context) {\n  ctx.slots.register("sidebar.footer", () => (\n    <Pill tone="ok">indexed</Pill>\n  ))\n}\n```\n\nThen insert the file into `cordis.yml` and boot with `--patch ./cordis.yml`. The renderer picks it up on the next client refresh; `ctx.slots.inject(key, cb)` subscribes to whatever else mounts in the same slot.'},
+        {role:'user', text:'And if the slot does not exist yet?'},
+        {role:'bot', text:'Registration is lazy. If nothing renders the slot, the callback never mounts and costs nothing. Declare the slot in your plugin manifest if you want it to exist for others to fill.\n\nOne caveat: slot callbacks run in the renderer, so do not reach for Node APIs there. Keep the server half in `apply(ctx)` and the view in a separate component.'}
+      ]
+    },
+    {
+      id:'s3', group:'Yesterday', title:'Boot animation polish',
+      msgs:[
+        {role:'user', text:'The boot sequence needs an ending. Right now it just sits on the wordmark.'},
+        {role:'bot', text:'I would detonate instead of cut. At the lock frame the particles already carry a settle velocity — reuse it as the outward impulse, stagger by distance from centre so it dissolves inside-out, and open the backdrop with a radial mask at the same time.\n\n- Dispersion: 1.3s, exponential decay, ember trails.\n- Veil: radial hole 0 to full in 1.25s, 190px feather.\n- UI: 6px blur to sharp, 1.015 scale to 1.\n\nThat reads as the interface condensing out of the particles rather than a hard cut.'}
+      ]
+    },
+    {
+      id:'s4', group:'Yesterday', title:'Release notes for v0.9',
+      msgs:[
+        {role:'user', text:'Draft release notes for 0.9 from the merged PRs.'},
+        {role:'bot', text:'## v0.9 — "Harness"\n\n**Added**\n- Slot-based UI extensions; plugins can mount anywhere the renderer exposes a key.\n- Streaming tool output with per-call timing.\n- `dsh web --patch` for layering a plugin manifest on a stock install.\n\n**Changed**\n- Session rotation is now single-write and CAS-guarded.\n- Boot sequence ends in the workspace instead of a static frame.\n\n**Fixed**\n- Plugin disposal no longer leaks slot subscriptions.\n- Queue drain on window blur.'}
+      ]
+    },
+    {
+      id:'s5', group:'Previous 7 days', title:'OCR pipeline benchmark',
+      msgs:[
+        {role:'user', text:'Benchmark the OCR pipeline against last quarter. Anything regress?'},
+        {role:'bot', text:'Throughput is up 31% and p95 latency down 180ms, but accuracy on dense tables regressed 2.4 points after the pre-processing change.\n\n- Median: **1.42s** per page (was 1.61s).\n- p95: **3.9s** (was 4.08s).\n- Table cell F1: **0.941** (was 0.965).\n\nLikely the new deskew threshold is clipping thin rules. I can A/B the threshold on the table subset and report back in a few minutes.'}
+      ]
+    }
+  ];
+
+  var state = { active:null, sessions:SESSIONS, typing:false, timer:0 };
+
+  function esc(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function inline(s){
+    return esc(s)
+      .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+      .replace(/`([^`]+)`/g,'<code>$1</code>');
+  }
+  function md(src){
+    var parts = String(src).split('```');
+    return parts.map(function(chunk, i){
+      if(i % 2 === 1){
+        var body = chunk.replace(/^[a-zA-Z]*\n/,'').replace(/\n$/,'');
+        return '<pre><code>' + esc(body) + '</code></pre>';
+      }
+      return chunk.split(/\n{2,}/).filter(function(b){ return b.trim(); }).map(function(block){
+        var t = block.trim();
+        if(/^(\s*[-*]\s)/m.test(t) && t.split('\n').length > 1){
+          return '<ul>' + t.split('\n').map(function(line){
+            return '<li>' + inline(line.replace(/^\s*[-*]\s*/,'')) + '</li>';
+          }).join('') + '</ul>';
+        }
+        return '<p>' + inline(t).replace(/\n/g,'<br>') + '</p>';
+      }).join('');
+    }).join('');
+  }
+
+  function renderSessions(){
+    var html = '', last = '';
+    state.sessions.forEach(function(s){
+      if(s.group !== last){ html += '<div class="group">' + esc(s.group) + '</div>'; last = s.group; }
+      html += '<button class="sitem' + (state.active && state.active.id === s.id ? ' active' : '') +
+              '" data-id="' + s.id + '">' + esc(s.title) + '</button>';
+    });
+    list.innerHTML = html;
+  }
+
+  function scrollDown(){
+    requestAnimationFrame(function(){ chat.scrollTop = chat.scrollHeight; });
+  }
+
+  function renderChat(){
+    var s = state.active;
+    var msgs = s ? s.msgs : [];
+    if(!msgs.length){
+      hero.hidden = false;
+      thread.hidden = true;
+      thread.innerHTML = '';
+      return;
+    }
+    hero.hidden = true;
+    thread.hidden = false;
+    var html = '';
+    msgs.forEach(function(m){
+      if(m.role === 'user'){
+        html += '<div class="msg-user"><div class="bubble">' + esc(m.text) + '</div></div>';
+      } else {
+        html += '<div class="msg-bot"><div class="av">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3z" stroke="rgba(255,140,116,.9)" stroke-width="1.4"/><circle cx="12" cy="12" r="1.6" fill="#ffb3a3"/></svg>' +
+          '</div><div class="bd">' + md(m.text) +
+          '<div class="msg-meta">DeepSeek Harness &middot; ' + (m.time || 'just now') + '</div>' +
+          '</div></div>';
+      }
+    });
+    if(state.typing){
+      html += '<div class="msg-bot"><div class="av">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3z" stroke="rgba(255,140,116,.9)" stroke-width="1.4"/><circle cx="12" cy="12" r="1.6" fill="#ffb3a3"/></svg>' +
+        '</div><div class="bd"><span class="dots"><i></i><i></i><i></i></span></div></div>';
+    }
+    thread.innerHTML = html;
+    scrollDown();
+  }
+
+  function replyFor(text){
+    var t = (text || '').toLowerCase();
+    if(/architecture|codebase|repo|map|onboard/.test(t)){
+      return "Here is the shape of the repo as I see it.\n\n- **packages/core** — the agent loop: model calls, tool dispatch, and the event bus. Entry point is `core/src/agent.ts`.\n- **packages/cordis** — the plugin runtime. Every capability is a plugin; services resolve through the context.\n- **apps/web** — the harness UI. Slots are registered in `web/src/slots/index.ts`.\n- **plugins/** — first-party tools: shell, filesystem, search, browser.\n\nThe hot path is `agent.ts -> dispatch() -> tool.execute() -> event bus`. I can write this into `docs/onboarding.md` with a dependency graph if you want it saved.";
+    }
+    if(/plugin|cordis|slot/.test(t)){
+      return "Cordis plugins are a name plus an apply function. UI is just a slot registration.\n\n```ts\nexport const name = \"status-pill\"\n\nexport function apply(ctx: Context) {\n  ctx.slots.register(\"sidebar.footer\", () => (\n    <Pill tone=\"ok\">indexed</Pill>\n  ))\n}\n```\n\nInsert the file into `cordis.yml`, then boot with `dsh web --patch ./cordis.yml`. The client renderer mounts the callback; `ctx.slots.inject(key, cb)` gives you a live view of everything in that slot.";
+    }
+    if(/auth|session|token|middleware/.test(t)){
+      return "I read the auth path. Three things stand out.\n\n- **Double write** — `touchSession()` runs in the middleware and again in the post-handler hook, so the second write drops the rotation timestamp.\n- **Rotation race** — parallel requests can both rotate the refresh token; the loser invalidates the winner.\n- **No compare-and-set** — `rotate()` trusts the previous token unconditionally.\n\nA single `withSession(ctx, next)` wrapper collapses all three: rotate once per chain, CAS on `refreshTokenHash`, touch in a `finally`. Public middleware API stays identical.";
+    }
+    if(/boot|animation|particle|motion|transition/.test(t)){
+      return "The ending is the part that matters. Instead of cutting on the wordmark, reuse the settle velocity as an outward impulse.\n\n- Dispersion: **1.3s** exponential decay with ember trails, staggered by distance so it dissolves inside-out.\n- Veil: radial hole **0 -> full** in 1.25s with a 190px feather.\n- UI: **6px blur -> sharp**, scale **1.015 -> 1**.\n\nThat reads as the interface condensing out of the particles rather than a hard cut to a new frame.";
+    }
+    if(/review|diff|change|commit|risky/.test(t)){
+      return "Reviewed the working tree: 7 files, +412 / -96.\n\n- **`core/src/agent.ts`** — the queue rewrite is sound, but `drain()` can spin if a tool resolves synchronously. Add a tick guard.\n- **`web/src/slots/index.ts`** — slot cleanup is missing in the error branch; a failed mount leaks a subscription.\n- **`plugins/shell`** — no issue found.\n\nNothing blocking. I can patch the two items and re-run `pnpm test` if you want.";
+    }
+    if(/runtime|agent|harness|explain/.test(t)){
+      return "The model is the brain; the harness is everything else it needs to act.\n\n- **Model** — stateless token prediction. No memory, no tools, no clock.\n- **Harness** — the loop around it: assemble context, call the model, parse tool calls, execute, feed results back, repeat until done.\n- **Plugins** — every capability is one. The shell, the filesystem, the browser, the UI slots themselves.\n\nSo `Agent = Model + Harness`, and `Harness = loop + tools + context + UI`. Everything you see in this window is a plugin mounted into a slot.";
+    }
+    return "Got it. I have the workspace indexed: 1,284 files, 63 packages, and the plugin graph resolved.\n\nI would start by locating the entry point for what you described, then open a task branch and run the relevant test package before touching anything. Tell me the outcome you want and I will take it from there.";
+  }
+
+  function send(raw){
+    var text = (raw == null ? input.value : raw).trim();
+    if(!text) return;
+    var s = state.active;
+    if(!s){
+      s = { id:'s' + Date.now().toString(36), group:'Today', title:text.slice(0, 44), msgs:[] };
+      state.sessions.unshift(s);
+      state.active = s;
+    }
+    s.msgs.push({ role:'user', text:text });
+    if(s.title === 'New session' || !s.msgs.length) s.title = text.slice(0, 44);
+    crumb.textContent = s.title;
+    input.value = '';
+    autosize();
+    syncSend();
+    state.typing = true;
+    renderSessions();
+    renderChat();
+    clearTimeout(state.timer);
+    state.timer = setTimeout(function(){
+      state.typing = false;
+      s.msgs.push({ role:'bot', text:replyFor(text) });
+      renderChat();
+    }, 850);
+  }
+
+  function newSession(){
+    state.active = null;
+    state.typing = false;
+    clearTimeout(state.timer);
+    crumb.textContent = 'New session';
+    input.value = '';
+    autosize();
+    syncSend();
+    renderSessions();
+    renderChat();
+    input.focus({ preventScroll:true });
+  }
+
+  function openSession(id){
+    var s = state.sessions.filter(function(x){ return x.id === id; })[0];
+    if(!s) return;
+    state.active = s;
+    state.typing = false;
+    clearTimeout(state.timer);
+    crumb.textContent = s.title;
+    renderSessions();
+    renderChat();
+    scrollDown();
+  }
+
+  function autosize(){
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 184) + 'px';
+  }
+  function syncSend(){
+    sendBtn.disabled = !input.value.trim();
+  }
+
+  list.addEventListener('click', function(e){
+    var btn = e.target.closest('.sitem');
+    if(btn) openSession(btn.getAttribute('data-id'));
+  });
+  document.getElementById('newChat').addEventListener('click', newSession);
+  document.getElementById('cards').addEventListener('click', function(e){
+    var card = e.target.closest('.card');
+    if(card) send(card.getAttribute('data-prompt'));
+  });
+  form.addEventListener('submit', function(e){ e.preventDefault(); send(); });
+  input.addEventListener('input', function(){ autosize(); syncSend(); });
+  input.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+  });
+  document.addEventListener('keydown', function(e){
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'){ e.preventDefault(); input.focus(); }
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n'){ e.preventDefault(); newSession(); }
+  });
+
+  document.getElementById('replay').addEventListener('click', function(){
+    if(window.DSHBootOverlay) window.DSHBootOverlay.play({ revealTarget:'#app' });
+  });
+
+  renderSessions();
+  renderChat();
+  autosize();
+  syncSend();
+
+  /* boot */
+  var params = new URLSearchParams(location.search);
+  if(params.get('noboot') === '1'){
+    app.classList.remove('dshb-pending');
+    app.classList.add('dshb-live');
+  } else if(window.DSHBootOverlay){
+    window.DSHBootOverlay.play({ revealTarget:'#app' });
+  } else {
+    app.classList.remove('dshb-pending');
+    app.classList.add('dshb-live');
+  }
+
+  document.addEventListener('dsh-boot:reveal', function(){
+    setTimeout(function(){ input.focus({ preventScroll:true }); }, 950);
+  });
+})();
+</script>
+</body>
+</html>

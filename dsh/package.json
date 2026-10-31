@@ -1,0 +1,19 @@
+{
+  "name": "@dsh-boot/particles",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Particle boot transition for the DeepSeek Harness desktop shell: the wordmark flies onto the real UI edges and the workspace fades in underneath.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2"
+  },
+  "license": "MIT"
+}
